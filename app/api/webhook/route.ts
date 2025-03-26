@@ -7,6 +7,20 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Helper function to add CORS headers
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+}
+
+// Handle OPTIONS request for CORS
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders() });
+}
+
 export async function POST(request: Request) {
   try {
     console.log('Webhook POST request received');
@@ -29,12 +43,12 @@ export async function POST(request: Request) {
     }
     
     console.log('Document saved to Supabase successfully');
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: corsHeaders() });
   } catch (error) {
     console.error('Webhook error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to process document' }, 
-      { status: 500 }
+      { status: 500, headers: corsHeaders() }
     );
   }
 }
@@ -56,12 +70,15 @@ export async function GET() {
       throw error;
     }
     
-    return NextResponse.json({ success: true, document: data[0] || null });
+    return NextResponse.json(
+      { success: true, document: data[0] || null },
+      { headers: corsHeaders() }
+    );
   } catch (error) {
     console.error('Webhook GET error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to retrieve documents' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders() }
     );
   }
 } 
