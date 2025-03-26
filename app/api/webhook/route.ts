@@ -1,47 +1,67 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-// Store documents in memory for demo purposes
-let documents: any[] = [
-  // Add a sample document for testing
-  {
-    id: "sample-123",
-    title: "Sample Document",
-    url: "https://example.com/sample",
-    author: "Sample Author",
-    created_at: new Date().toISOString()
-  }
-];
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: Request) {
   try {
     console.log('Webhook POST request received');
-    const body = await request.json();
-    console.log('Received data:', body);
+    const docData = await request.json();
+    console.log('Received data:', docData);
     
-    // Add timestamp if not provided
-    const document = {
-      ...body,
-      created_at: body.created_at || new Date().toISOString()
-    };
+    // Save the Google Doc content to Supabase
+    const { data, error } = await supabase
+      .from('google_doc_content')
+      .upsert({
+        id: docData.id || 'default',
+        title: docData.title || 'Google Doc Content',
+        content: docData.content,
+        last_updated: new Date().toISOString()
+      });
     
-    // Add to in-memory store
-    documents.unshift(document);
-    
-    // Keep only the last 20 documents
-    if (documents.length > 20) {
-      documents = documents.slice(0, 20);
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
     }
-
-    console.log('Document added successfully, total documents:', documents.length);
-    return NextResponse.json({ success: true, data: document });
+    
+    console.log('Document saved to Supabase successfully');
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Webhook error:', error);
-    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Failed to process document' }, 
+      { status: 500 }
+    );
   }
 }
 
-// GET endpoint to retrieve documents
+// GET endpoint to retrieve the latest document
 export async function GET() {
-  console.log('Webhook GET request received, returning', documents.length, 'documents');
-  return NextResponse.json({ documents });
+  try {
+    console.log('Webhook GET request received');
+    
+    // Get the latest document from Supabase
+    const { data, error } = await supabase
+      .from('google_doc_content')
+      .select('*')
+      .order('last_updated', { ascending: false })
+      .limit(1);
+    
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
+    
+    return NextResponse.json({ success: true, document: data[0] || null });
+  } catch (error) {
+    console.error('Webhook GET error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to retrieve documents' },
+      { status: 500 }
+    );
+  }
 } 
